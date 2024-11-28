@@ -1,0 +1,121 @@
+Submodule manylinux contains modified content
+diff --git a/manylinux/docker/build_scripts/build_utils.sh b/manylinux/docker/build_scripts/build_utils.sh
+index 7e0f37f..3d48f0d 100755
+--- a/manylinux/docker/build_scripts/build_utils.sh
++++ b/manylinux/docker/build_scripts/build_utils.sh
+@@ -19,6 +19,8 @@ else
+ 		PACKAGE_MANAGER=dnf
+ 	elif command -v yum >/dev/null 2>&1; then
+ 		PACKAGE_MANAGER=yum
++	elif command -v apt-get >/dev/null 2>&1; then
++		PACKAGE_MANAGER=apt
+ 	else
+ 		echo "unsupported image"
+ 		exit 1
+@@ -29,6 +31,7 @@ OS_ID_LIKE=$(. /etc/os-release; echo "${ID} ${ID_LIKE:-}")
+ case "${OS_ID_LIKE}" in
+ 	*rhel*) OS_ID_LIKE=rhel;;
+ 	*alpine*) OS_ID_LIKE=alpine;;
++	*debian*) OS_ID_LIKE=debian;;
+ 	*) echo "unsupported image"; exit 1;;
+ esac
+ 
+@@ -90,6 +93,12 @@ function manylinux_pkg_install {
+ 		dnf -y install --allowerasing "$@"
+ 	elif [ "${PACKAGE_MANAGER}" = "apk" ]; then
+ 		apk add --no-cache "$@"
++	elif [ "${PACKAGE_MANAGER}" = "apt" ]; then
++	  export DEBIAN_FRONTEND=noninteractive
++    sed -i 's/none/en_US/g' /etc/apt/apt.conf.d/docker-no-languages
++    apt-get update -qq
++    apt-get upgrade -qq -y
++		apt-get install -qq -y --no-install-recommends "$@"
+ 	else
+ 		return 1
+ 	fi
+@@ -102,6 +111,8 @@ function manylinux_pkg_remove {
+ 		dnf erase -y "$@"
+ 	elif [ "${PACKAGE_MANAGER}" = "apk" ]; then
+ 		apk del "$@"
++	elif [ "${PACKAGE_MANAGER}" = "apt" ]; then
++		apt-get uninstall -qq -y "$@"
+ 	else
+ 		return 1
+ 	fi
+@@ -116,6 +127,9 @@ function manylinux_pkg_clean {
+ 		rm -rf /var/cache/dnf
+ 	elif [ "${PACKAGE_MANAGER}" = "apk" ]; then
+ 		:
++	elif [ "${PACKAGE_MANAGER}" = "apt" ]; then
++		apt-get clean -qq
++	  rm -rf /var/lib/apt/lists/*
+ 	else
+ 		return 1
+ 	fi
+diff --git a/manylinux/docker/build_scripts/install-build-packages.sh b/manylinux/docker/build_scripts/install-build-packages.sh
+index 99de558..cdd289b 100755
+--- a/manylinux/docker/build_scripts/install-build-packages.sh
++++ b/manylinux/docker/build_scripts/install-build-packages.sh
+@@ -24,6 +24,8 @@ if [ "${OS_ID_LIKE}" = "rhel" ]; then
+ 	fi
+ elif [ "${OS_ID_LIKE}" == "alpine" ]; then
+ 	COMPILE_DEPS="bzip2-dev ncurses-dev readline-dev tk-dev gdbm-dev libpcap-dev xz-dev openssl openssl-dev keyutils-dev krb5-dev libcom_err libidn-dev curl-dev util-linux-dev libffi-dev linux-headers"
++elif [ "${OS_ID_LIKE}" == "debian" ]; then
++	COMPILE_DEPS="libbz2-dev libncurses5-dev libreadline-dev tk-dev libgdbm-dev libdb-dev libpcap-dev liblzma-dev openssl libssl-dev libkeyutils-dev libkrb5-dev comerr-dev libidn2-0-dev libcurl4-openssl-dev uuid-dev libffi-dev linux-headers-generic"
+ else
+ 	echo "Unsupported policy: '${AUDITWHEEL_POLICY}'"
+ 	exit 1
+diff --git a/manylinux/docker/build_scripts/install-runtime-packages.sh b/manylinux/docker/build_scripts/install-runtime-packages.sh
+index 1ad4e5b..1e234ca 100755
+--- a/manylinux/docker/build_scripts/install-runtime-packages.sh
++++ b/manylinux/docker/build_scripts/install-runtime-packages.sh
+@@ -36,6 +36,8 @@ if [ "${OS_ID_LIKE}" == "rhel" ]; then
+ 	MANYLINUX_DEPS="glibc-devel libstdc++-devel glib2-devel libX11-devel libXext-devel libXrender-devel mesa-libGL-devel libICE-devel libSM-devel zlib-devel expat-devel"
+ elif [ "${OS_ID_LIKE}" == "alpine" ]; then
+ 	MANYLINUX_DEPS="musl-dev libstdc++ glib-dev libx11-dev libxext-dev libxrender-dev mesa-dev libice-dev libsm-dev zlib-dev expat-dev"
++elif [ "${OS_ID_LIKE}" == "debian" ]; then
++	MANYLINUX_DEPS="libc-dev libstdc++-dev libglib2.0-dev libx11-dev libxext-dev libxrender-dev libgl1-mesa-dev libice-dev libsm-dev libz-dev libexpat1-dev"
+ else
+ 	echo "Unsupported policy: '${AUDITWHEEL_POLICY}'"
+ 	exit 1
+@@ -55,12 +57,14 @@ if [ "${OS_ID_LIKE}" == "rhel" ]; then
+ 	fi
+ elif [ "${OS_ID_LIKE}" == "alpine" ]; then
+ 	RUNTIME_DEPS="zlib bzip2 expat ncurses-libs readline tk gdbm db xz openssl keyutils-libs krb5-libs libcom_err libidn2 libcurl libuuid libffi"
++elif [ "${OS_ID_LIKE}" == "debian" ]; then
++	RUNTIME_DEPS="zlib1g libbz2-1.0 libexpat1 libncurses5 libreadline8 tk libgdbm6 libdb5.3 libpcap0.8 liblzma5 libssl1.1 libkeyutils1 libkrb5-3 libcomerr2 libidn2-0 libcurl4 uuid libffi7"
+ else
+ 	echo "Unsupported policy: '${AUDITWHEEL_POLICY}'"
+ 	exit 1
+ fi
+ 
+-BASETOOLS="autoconf automake bison bzip2 ca-certificates curl diffutils file make patch unzip"
++BASETOOLS="autoconf automake bison bzip2 ca-certificates curl diffutils file make patch unzip patchelf"
+ if [ "${AUDITWHEEL_POLICY}" == "manylinux2014" ]; then
+ 	BASETOOLS="${BASETOOLS} hardlink hostname which"
+ 	# See https://unix.stackexchange.com/questions/41784/can-yum-express-a-preference-for-x86-64-over-i386-packages
+@@ -123,6 +127,9 @@ elif [ "${OS_ID_LIKE}" == "rhel" ]; then
+ elif [ "${OS_ID_LIKE}" == "alpine" ]; then
+ 	TOOLCHAIN_DEPS="binutils gcc g++ gfortran"
+ 	BASETOOLS="${BASETOOLS} gnupg util-linux shadow tar"
++elif [ "${OS_ID_LIKE}" == "debian" ]; then
++	TOOLCHAIN_DEPS="binutils gcc g++ gfortran"
++	BASETOOLS="${BASETOOLS} gpg gpg-agent hardlink hostname xz-utils"
+ else
+ 	echo "Unsupported policy: '${AUDITWHEEL_POLICY}'"
+ 	exit 1
+diff --git a/manylinux/docker/build_scripts/update-system-packages.sh b/manylinux/docker/build_scripts/update-system-packages.sh
+index d07e968..16edfb1 100755
+--- a/manylinux/docker/build_scripts/update-system-packages.sh
++++ b/manylinux/docker/build_scripts/update-system-packages.sh
+@@ -22,6 +22,10 @@ elif [ "${PACKAGE_MANAGER}" == "dnf" ]; then
+ 	dnf -y upgrade
+ elif [ "${PACKAGE_MANAGER}" == "apk" ]; then
+ 	apk upgrade --no-cache
++elif [ "${PACKAGE_MANAGER}" == "apt" ]; then
++	export DEBIAN_FRONTEND=noninteractive
++	apt-get update -qq
++	apt-get upgrade -qq -y
+ else
+ 	echo "Unsupported package manager: '${PACKAGE_MANAGER}'"
+ 	exit 1
