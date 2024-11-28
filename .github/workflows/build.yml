@@ -85,7 +85,7 @@ jobs:
           key: buildx-cache-${{ matrix.policy }}-${{ matrix.platform }}
 
       - name: Deploy
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'pypa/manylinux'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'EndstoneMC/manylinux'
         run: cd manylinux && ./deploy.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
