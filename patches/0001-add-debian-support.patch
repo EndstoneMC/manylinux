@@ -74,7 +74,7 @@ index 1ad4e5b..1e234ca 100755
  elif [ "${OS_ID_LIKE}" == "alpine" ]; then
  	MANYLINUX_DEPS="musl-dev libstdc++ glib-dev libx11-dev libxext-dev libxrender-dev mesa-dev libice-dev libsm-dev zlib-dev expat-dev"
 +elif [ "${OS_ID_LIKE}" == "debian" ]; then
-+	MANYLINUX_DEPS="libc-dev libstdc++-dev libglib2.0-dev libx11-dev libxext-dev libxrender-dev libgl1-mesa-dev libice-dev libsm-dev libz-dev libexpat1-dev"
++	MANYLINUX_DEPS="libc6-dev libstdc++-10-dev libglib2.0-dev libx11-dev libxext-dev libxrender-dev libgl1-mesa-dev libice-dev libsm-dev libz-dev libexpat1-dev"
  else
  	echo "Unsupported policy: '${AUDITWHEEL_POLICY}'"
  	exit 1
