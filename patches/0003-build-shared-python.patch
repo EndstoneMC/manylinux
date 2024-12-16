@@ -12,7 +12,7 @@ index a913760..be01e27 100755
  
  if [ "${2:-}" == "nogil" ]; then
  	PREFIX="${PREFIX}-nogil"
-@@ -84,6 +84,8 @@ make install > /dev/null
+@@ -88,6 +88,8 @@ make install > /dev/null
  popd
  rm -rf Python-${CPYTHON_VERSION} Python-${CPYTHON_VERSION}.tgz Python-${CPYTHON_VERSION}.tgz.asc
  
