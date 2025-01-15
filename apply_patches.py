@@ -1,7 +1,7 @@
 import glob
 import patch_ng
 
-for patch_file in glob.glob("patches/*.patch"):
+for patch_file in glob.glob("patches/*.diff"):
     patchset = patch_ng.fromfile(patch_file)
     if not patchset:
         raise RuntimeError(f"Failed to parse patch: {patch_file}")

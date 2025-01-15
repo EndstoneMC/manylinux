@@ -1,0 +1,199 @@
+Submodule manylinux 3165879..95d3417:
+diff --git a/manylinux/build.sh b/manylinux/build.sh
+index aebf5cd..7e6ed97 100755
+--- a/manylinux/build.sh
++++ b/manylinux/build.sh
+@@ -37,6 +37,11 @@ elif [ "${POLICY}" == "manylinux_2_28" ]; then
+ 	DEVTOOLSET_ROOTPATH="/opt/rh/gcc-toolset-14/root"
+ 	PREPEND_PATH="${DEVTOOLSET_ROOTPATH}/usr/bin:"
+ 	LD_LIBRARY_PATH_ARG="${DEVTOOLSET_ROOTPATH}/usr/lib64:${DEVTOOLSET_ROOTPATH}/usr/lib:${DEVTOOLSET_ROOTPATH}/usr/lib64/dyninst:${DEVTOOLSET_ROOTPATH}/usr/lib/dyninst"
++elif [ "${POLICY}" == "manylinux_2_31" ]; then
++	BASEIMAGE="debian:11"
++	DEVTOOLSET_ROOTPATH=
++	PREPEND_PATH=
++	LD_LIBRARY_PATH_ARG=
+ elif [ "${POLICY}" == "manylinux_2_34" ]; then
+ 	BASEIMAGE="almalinux:9"
+ 	DEVTOOLSET_ROOTPATH="/opt/rh/gcc-toolset-14/root"
+@@ -60,7 +65,7 @@ BUILD_ARGS_COMMON=(
+ 	"--platform=linux/${GOARCH}"
+ 	--build-arg POLICY --build-arg PLATFORM --build-arg BASEIMAGE
+ 	--build-arg DEVTOOLSET_ROOTPATH --build-arg PREPEND_PATH --build-arg LD_LIBRARY_PATH_ARG
+-	--rm -t "quay.io/pypa/${POLICY}_${PLATFORM}:${COMMIT_SHA}"
++	--rm -t "ghcr.io/endstonemc/${POLICY}_${PLATFORM}:${COMMIT_SHA}"
+ 	-f docker/Dockerfile docker/
+ )
+
+@@ -90,7 +95,7 @@ else
+ 	exit 1
+ fi
+
+-docker run --rm -v "$(pwd)/tests:/tests:ro" "quay.io/pypa/${POLICY}_${PLATFORM}:${COMMIT_SHA}" /tests/run_tests.sh
++docker run --rm -v "$(pwd)/tests:/tests:ro" "ghcr.io/endstonemc/${POLICY}_${PLATFORM}:${COMMIT_SHA}" /tests/run_tests.sh
+
+ if [ ${USE_LOCAL_CACHE} -ne 0 ]; then
+ 	if [ -d "$(pwd)/.buildx-cache-${POLICY}_${PLATFORM}" ]; then
+diff --git a/manylinux/deploy.sh b/manylinux/deploy.sh
+index deea740..00dadb5 100755
+--- a/manylinux/deploy.sh
++++ b/manylinux/deploy.sh
+@@ -11,7 +11,7 @@ fi
+
+ set -x
+
+-TAG="quay.io/pypa/${POLICY}_${PLATFORM}"
++TAG="ghcr.io/endstonemc/${POLICY}_${PLATFORM}"
+ COMMIT_ABBREV_SHA=$(git show -s --format=%h "${COMMIT_SHA}")
+ COMMIT_DATE=$(git show -s --format=%cd --date=short "${COMMIT_SHA}")
+ BUILD_ID=${COMMIT_DATE}-${COMMIT_ABBREV_SHA}
+@@ -30,7 +30,7 @@ docker tag "${TAG}:${COMMIT_SHA}" "${TAG}:latest"
+ set +x
+
+ if [ $DRY_RUN -eq 0 ]; then
+-  docker login -u "${QUAY_USERNAME}" -p "${QUAY_PASSWORD}" quay.io
++  docker login -u $ -p "${GITHUB_TOKEN}" ghcr.io
+   docker push "${TAG}:${BUILD_ID}"
+   docker push "${TAG}:${BUILD_ID2}"
+   docker push "${TAG}:latest"
+diff --git a/manylinux/docker/build_scripts/build-cpython.sh b/manylinux/docker/build_scripts/build-cpython.sh
+index 90f2400..7608f4c 100755
+--- a/manylinux/docker/build_scripts/build-cpython.sh
++++ b/manylinux/docker/build_scripts/build-cpython.sh
+@@ -34,7 +34,7 @@ pushd "Python-${CPYTHON_VERSION}"
+ PREFIX="/opt/_internal/cpython-${CPYTHON_VERSION}"
+ mkdir -p "${PREFIX}/lib"
+ CFLAGS_EXTRA=""
+-CONFIGURE_ARGS=(--disable-shared --with-ensurepip=no)
++CONFIGURE_ARGS=(--enable-shared --with-ensurepip=no)
+
+ if [ "${2:-}" == "nogil" ]; then
+ 	PREFIX="${PREFIX}-nogil"
+@@ -89,6 +89,8 @@ make install > /dev/null
+ popd
+ rm -rf "Python-${CPYTHON_VERSION}" "Python-${CPYTHON_VERSION}.tgz" "Python-${CPYTHON_VERSION}.tgz.asc"
+
++patchelf --force-rpath --set-rpath '$ORIGIN/../lib' ${PREFIX}/bin/python3
++
+ if [ "${OPENSSL_PREFIX}" != "" ]; then
+ 	rm -rf "${OPENSSL_PREFIX:?}/bin" "${OPENSSL_PREFIX}/include" "${OPENSSL_PREFIX}/lib/pkgconfig" "${OPENSSL_PREFIX}/lib/*.so"
+ fi
+diff --git a/manylinux/docker/build_scripts/build_utils.sh b/manylinux/docker/build_scripts/build_utils.sh
+index 04dfa24..a35abb5 100755
+--- a/manylinux/docker/build_scripts/build_utils.sh
++++ b/manylinux/docker/build_scripts/build_utils.sh
+@@ -19,6 +19,8 @@ else
+ 		PACKAGE_MANAGER=dnf
+ 	elif command -v yum >/dev/null 2>&1; then
+ 		PACKAGE_MANAGER=yum
++	elif command -v apt-get >/dev/null 2>&1; then
++		PACKAGE_MANAGER=apt
+ 	else
+ 		echo "unsupported image"
+ 		exit 1
+@@ -30,6 +32,7 @@ OS_ID_LIKE=$(. /etc/os-release; echo "${ID} ${ID_LIKE:-}")
+ case "${OS_ID_LIKE}" in
+ 	*rhel*) OS_ID_LIKE=rhel;;
+ 	*alpine*) OS_ID_LIKE=alpine;;
++	*debian*) OS_ID_LIKE=debian;;
+ 	*) echo "unsupported image"; exit 1;;
+ esac
+
+@@ -91,6 +94,12 @@ function manylinux_pkg_install {
+ 		dnf -y install --allowerasing "$@"
+ 	elif [ "${PACKAGE_MANAGER}" = "apk" ]; then
+ 		apk add --no-cache "$@"
++	elif [ "${PACKAGE_MANAGER}" = "apt" ]; then
++		export DEBIAN_FRONTEND=noninteractive
++		sed -i 's/none/en_US/g' /etc/apt/apt.conf.d/docker-no-languages
++		apt-get update -qq
++		apt-get upgrade -qq -y
++		apt-get install -qq -y --no-install-recommends "$@"
+ 	else
+ 		return 1
+ 	fi
+@@ -103,6 +112,8 @@ function manylinux_pkg_remove {
+ 		dnf erase -y "$@"
+ 	elif [ "${PACKAGE_MANAGER}" = "apk" ]; then
+ 		apk del "$@"
++	elif [ "${PACKAGE_MANAGER}" = "apt" ]; then
++		apt-get uninstall -qq -y "$@"
+ 	else
+ 		return 1
+ 	fi
+@@ -117,6 +128,9 @@ function manylinux_pkg_clean {
+ 		rm -rf /var/cache/dnf
+ 	elif [ "${PACKAGE_MANAGER}" = "apk" ]; then
+ 		:
++	elif [ "${PACKAGE_MANAGER}" = "apt" ]; then
++		apt-get clean -qq
++		rm -rf /var/lib/apt/lists/*
+ 	else
+ 		return 1
+ 	fi
+diff --git a/manylinux/docker/build_scripts/install-build-packages.sh b/manylinux/docker/build_scripts/install-build-packages.sh
+index f46f745..9e4add5 100755
+--- a/manylinux/docker/build_scripts/install-build-packages.sh
++++ b/manylinux/docker/build_scripts/install-build-packages.sh
+@@ -25,6 +25,8 @@ if [ "${OS_ID_LIKE}" = "rhel" ]; then
+ 	fi
+ elif [ "${OS_ID_LIKE}" == "alpine" ]; then
+ 	COMPILE_DEPS=(bzip2-dev ncurses-dev readline-dev tk-dev gdbm-dev libpcap-dev xz-dev openssl openssl-dev keyutils-dev krb5-dev libcom_err libidn-dev curl-dev util-linux-dev libffi-dev linux-headers)
++elif [ "${OS_ID_LIKE}" == "debian" ]; then
++	COMPILE_DEPS=(libbz2-dev libncurses5-dev libreadline-dev tk-dev libgdbm-dev libdb-dev libpcap-dev liblzma-dev openssl libssl-dev libkeyutils-dev libkrb5-dev comerr-dev libidn2-0-dev libcurl4-openssl-dev uuid-dev libffi-dev linux-headers-generic)
+ else
+ 	echo "Unsupported policy: '${AUDITWHEEL_POLICY}'"
+ 	exit 1
+diff --git a/manylinux/docker/build_scripts/install-runtime-packages.sh b/manylinux/docker/build_scripts/install-runtime-packages.sh
+index 51df557..e6a754e 100755
+--- a/manylinux/docker/build_scripts/install-runtime-packages.sh
++++ b/manylinux/docker/build_scripts/install-runtime-packages.sh
+@@ -37,6 +37,8 @@ if [ "${OS_ID_LIKE}" == "rhel" ]; then
+ 	MANYLINUX_DEPS=(glibc-devel libstdc++-devel glib2-devel libX11-devel libXext-devel libXrender-devel mesa-libGL-devel libICE-devel libSM-devel zlib-devel expat-devel)
+ elif [ "${OS_ID_LIKE}" == "alpine" ]; then
+ 	MANYLINUX_DEPS=(musl-dev libstdc++ glib-dev libx11-dev libxext-dev libxrender-dev mesa-dev libice-dev libsm-dev zlib-dev expat-dev)
++elif [ "${OS_ID_LIKE}" == "debian" ]; then
++	MANYLINUX_DEPS=(libc6-dev libstdc++-10-dev libglib2.0-dev libx11-dev libxext-dev libxrender-dev libgl1-mesa-dev libice-dev libsm-dev libz-dev libexpat1-dev)
+ else
+ 	echo "Unsupported policy: '${AUDITWHEEL_POLICY}'"
+ 	exit 1
+@@ -56,12 +58,14 @@ if [ "${OS_ID_LIKE}" == "rhel" ]; then
+ 	fi
+ elif [ "${OS_ID_LIKE}" == "alpine" ]; then
+ 	RUNTIME_DEPS=(zlib bzip2 expat ncurses-libs readline tk gdbm db xz openssl keyutils-libs krb5-libs libcom_err libidn2 libcurl libuuid libffi)
++elif [ "${OS_ID_LIKE}" == "debian" ]; then
++	RUNTIME_DEPS=(zlib1g libbz2-1.0 libexpat1 libncurses5 libreadline8 tk libgdbm6 libdb5.3 libpcap0.8 liblzma5 libssl1.1 libkeyutils1 libkrb5-3 libcomerr2 libidn2-0 libcurl4 uuid libffi7)
+ else
+ 	echo "Unsupported policy: '${AUDITWHEEL_POLICY}'"
+ 	exit 1
+ fi
+
+-BASE_TOOLS=(autoconf automake bison bzip2 ca-certificates curl diffutils file make patch unzip)
++BASE_TOOLS=(autoconf automake bison bzip2 ca-certificates curl diffutils file make patch unzip patchelf)
+ if [ "${AUDITWHEEL_POLICY}" == "manylinux2014" ]; then
+ 	BASE_TOOLS+=(hardlink hostname which)
+ 	# See https://unix.stackexchange.com/questions/41784/can-yum-express-a-preference-for-x86-64-over-i386-packages
+@@ -123,6 +127,9 @@ elif [ "${OS_ID_LIKE}" == "rhel" ]; then
+ elif [ "${OS_ID_LIKE}" == "alpine" ]; then
+ 	TOOLCHAIN_DEPS=(binutils gcc g++ gfortran)
+ 	BASE_TOOLS+=(gnupg util-linux shadow tar)
++elif [ "${OS_ID_LIKE}" == "debian" ]; then
++	TOOLCHAIN_DEPS=(binutils gcc g++ gfortran)
++	BASE_TOOLS+=(gpg gpg-agent hardlink hostname xz-utils)
+ else
+ 	echo "Unsupported policy: '${AUDITWHEEL_POLICY}'"
+ 	exit 1
+diff --git a/manylinux/docker/build_scripts/update-system-packages.sh b/manylinux/docker/build_scripts/update-system-packages.sh
+index 3efc03e..9fa1fbc 100755
+--- a/manylinux/docker/build_scripts/update-system-packages.sh
++++ b/manylinux/docker/build_scripts/update-system-packages.sh
+@@ -23,6 +23,10 @@ elif [ "${PACKAGE_MANAGER}" == "dnf" ]; then
+ 	dnf -y upgrade
+ elif [ "${PACKAGE_MANAGER}" == "apk" ]; then
+ 	apk upgrade --no-cache
++elif [ "${PACKAGE_MANAGER}" == "apt" ]; then
++	export DEBIAN_FRONTEND=noninteractive
++	apt-get update -qq
++	apt-get upgrade -qq -y
+ else
+ 	echo "Unsupported package manager: '${PACKAGE_MANAGER}'"
+ 	exit 1
