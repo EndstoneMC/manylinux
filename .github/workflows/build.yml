@@ -68,6 +68,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       actions: write # this permission is needed to delete cache
+      packages: write
     strategy:
       fail-fast: false
       matrix:
