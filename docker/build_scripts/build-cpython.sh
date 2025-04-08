@@ -99,7 +99,8 @@ make install > /dev/null
 popd
 rm -rf "Python-${CPYTHON_VERSION}" "Python-${CPYTHON_VERSION}.tar.xz" "Python-${CPYTHON_VERSION}.tar.xz.sigstore"  "Python-${CPYTHON_VERSION}.tar.xz.asc"
 
-patchelf --force-rpath --set-rpath '$ORIGIN/../lib' ${PREFIX}/bin/python3
+# shellcheck disable=SC2016
+patchelf --force-rpath --set-rpath '$ORIGIN/../lib' "${PREFIX}/bin/python3"
 
 if [ "${OPENSSL_PREFIX}" != "" ]; then
 	rm -rf "${OPENSSL_PREFIX:?}/bin" "${OPENSSL_PREFIX}/include" "${OPENSSL_PREFIX}/lib/pkgconfig" "${OPENSSL_PREFIX}/lib/*.so"
