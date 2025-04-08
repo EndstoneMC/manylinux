@@ -70,7 +70,7 @@ else
 	exit 1
 fi
 
-BASE_TOOLS=(autoconf automake bison bzip2 ca-certificates curl diffutils file make patch unzip)
+BASE_TOOLS=(autoconf automake bison bzip2 ca-certificates curl diffutils file make patch unzip patchelf)
 if [ "${AUDITWHEEL_POLICY}" == "manylinux2014" ]; then
 	BASE_TOOLS+=(hardlink hostname which)
 	# See https://unix.stackexchange.com/questions/41784/can-yum-express-a-preference-for-x86-64-over-i386-packages
