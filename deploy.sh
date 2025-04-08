@@ -11,7 +11,7 @@ fi
 
 set -x
 
-TAG="quay.io/pypa/${POLICY}_${PLATFORM}"
+TAG="ghcr.io/endstonemc/${POLICY}_${PLATFORM}"
 COMMIT_ABBREV_SHA=$(git show -s --format=%h "${COMMIT_SHA}")
 COMMIT_DATE=$(git show -s --format=%cd --date=short "${COMMIT_SHA}")
 BUILD_ID=${COMMIT_DATE}-${COMMIT_ABBREV_SHA}
@@ -30,7 +30,7 @@ docker tag "${TAG}:${COMMIT_SHA}" "${TAG}:latest"
 set +x
 
 if [ $DRY_RUN -eq 0 ]; then
-  docker login -u "${QUAY_USERNAME}" -p "${QUAY_PASSWORD}" quay.io
+  docker login -u $ -p "${GITHUB_TOKEN}" ghcr.io
   docker push "${TAG}:${BUILD_ID}"
   docker push "${TAG}:${BUILD_ID2}"
   docker push "${TAG}:latest"

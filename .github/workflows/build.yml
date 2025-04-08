@@ -51,10 +51,11 @@ jobs:
           import os
           import json
           reduced = [
-              ("x86_64", "ubuntu-24.04", ("manylinux2014", "manylinux_2_28", "manylinux_2_34", "musllinux_1_2")),
-              ("aarch64", "ubuntu-24.04-arm", ("manylinux2014", "manylinux_2_28", "manylinux_2_34", "musllinux_1_2")),
-              ("i686", "ubuntu-24.04", ("manylinux2014", "musllinux_1_2")),
-              ("armv7l", "ubuntu-24.04-arm", ("manylinux_2_31", "musllinux_1_2")),
+              ("x86_64", "ubuntu-24.04", ("manylinux_2_31")),
+              # ("x86_64", "ubuntu-24.04", ("manylinux2014", "manylinux_2_28", "manylinux_2_34", "musllinux_1_2")),
+              # ("aarch64", "ubuntu-24.04-arm", ("manylinux2014", "manylinux_2_28", "manylinux_2_34", "musllinux_1_2")),
+              # ("i686", "ubuntu-24.04", ("manylinux2014", "musllinux_1_2")),
+              # ("armv7l", "ubuntu-24.04-arm", ("manylinux_2_31", "musllinux_1_2")),
           ]
           expanded = [{"policy": policy, "platform": platform, "runner": runner} for platform, runner, policies in reduced for policy in policies]
           print(json.dumps(expanded, indent=2))
@@ -111,11 +112,10 @@ jobs:
           key: buildx-cache-${{ matrix.policy }}-${{ matrix.platform }}
 
       - name: Deploy
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'pypa/manylinux'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'EndstoneMC/manylinux'
         run: ./deploy.sh
         env:
-          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
-          QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   all_passed:
     needs: [build_manylinux]
