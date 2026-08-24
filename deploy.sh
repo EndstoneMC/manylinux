@@ -11,7 +11,7 @@ fi
 
 set -x
 
-TAG="quay.io/pypa/${POLICY}_${PLATFORM}"
+TAG="ghcr.io/endstonemc/${POLICY}_${PLATFORM}"
 COMMIT_DATE=$(git show -s --format=%cd --date=short "${COMMIT_SHA}")
 if eval "$(git rev-parse --is-shallow-repository)"; then
   git fetch --unshallow
@@ -25,7 +25,7 @@ docker tag "${TAG}:${COMMIT_SHA}" "${TAG}:latest"
 set +x
 
 if [ $DRY_RUN -eq 0 ]; then
-  docker login -u "${QUAY_USERNAME}" -p "${QUAY_PASSWORD}" quay.io
+  docker login -u "${GITHUB_ACTOR}" -p "${GITHUB_TOKEN}" ghcr.io
   docker push "${TAG}:${BUILD_ID}"
   docker push "${TAG}:latest"
 fi
