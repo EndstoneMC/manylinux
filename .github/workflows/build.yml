@@ -127,6 +127,15 @@ jobs:
         with:
           jobs: ${{ toJSON(needs) }}
 
+  clang:
+    if: needs.build_matrix.outputs.environment == 'ghcr.io'
+    name: Clang image
+    needs: [build_matrix, all_passed]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/clang.yml
+
   deploy_multiarch:
     if: needs.build_matrix.outputs.environment == 'quay.io'
     name: Deploy multi-arch images
