@@ -38,7 +38,7 @@ mkdir -p "${PREFIX}/lib"
 
 CFLAGS_NODIST="${MANYLINUX_CFLAGS} ${MANYLINUX_CPPFLAGS}"
 LDFLAGS_EXTRA=""
-CONFIGURE_ARGS=(--disable-shared --with-ensurepip=no)
+CONFIGURE_ARGS=(--enable-shared --with-ensurepip=no)
 
 if [ "${AUDITWHEEL_ARCH}" == "loongarch64" ]; then
 	PATCH_COMMIT="8138f8f7337d95bd098b398d368d4763861f2395"
@@ -127,6 +127,9 @@ make > /dev/null
 make install > /dev/null
 popd
 rm -rf "Python-${CPYTHON_VERSION}" "Python-${CPYTHON_VERSION}.tar.xz" "Python-${CPYTHON_VERSION}.tar.xz.sigstore"
+
+# shellcheck disable=SC2016
+patchelf --force-rpath --set-rpath '$ORIGIN/../lib' "${PREFIX}/bin/python3"
 
 if [ "${OPENSSL_PREFIX}" != "" ]; then
 	rm -rf "${OPENSSL_PREFIX:?}/bin" "${OPENSSL_PREFIX}/include" "${OPENSSL_PREFIX}/lib/pkgconfig" "${OPENSSL_PREFIX}/lib/*.so"
